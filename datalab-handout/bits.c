@@ -263,8 +263,21 @@ int logicalNeg(int x) {
  *  Rating: 4
  */
 int howManyBits(int x) {
-  
-  return 0;
+  int sign, b16, b8, b4, b2, b1, b0;
+  sign = x >> 31;
+  x = x ^ sign;
+  b16 = !!(x >> 16) << 4;
+  x >>= b16;
+  b8 = !!(x >> 8) << 3;
+  x >>= b8;
+  b4 = !!(x >> 4) << 2;
+  x >>= b4;
+  b2 = !!(x >> 2) << 1;
+  x >>= b2;
+  b1 = !!(x >> 1);
+  x >>= b1;
+  b0 = x;
+  return 1 + b16 + b8 + b4 + b2 + b1 + b0;
 }
 //float
 /* 
@@ -279,7 +292,22 @@ int howManyBits(int x) {
  *   Rating: 4
  */
 unsigned floatScale2(unsigned uf) {
-  return 2;
+  // 32 = 1 + 8 + 23
+  unsigned int sign = (uf >> 31) << 31;
+  unsigned int exp = (uf << 1) >> 24;
+  unsigned int frac = (uf << 9) >> 9;
+  if(exp == 0xFF){
+    return uf;
+  }
+  if(exp == 0){
+    return sign | (uf << 1);
+  }
+  ++exp;
+  if(exp == 0xFF){
+    // 1000
+    return sign | 0x7F800000;
+  }
+  return sign | (exp << 23) | frac;
 }
 /* 
  * floatFloat2Int - Return bit-level equivalent of expression (int) f
@@ -294,7 +322,27 @@ unsigned floatScale2(unsigned uf) {
  *   Rating: 4
  */
 int floatFloat2Int(unsigned uf) {
-  return 2;
+  unsigned sign, exp, frac, val;
+  int E;
+  sign = (uf >> 31) & 1;
+  exp = (uf >> 23) & 0xFF;
+  frac = uf & 0x7FFFFF;
+  val = frac | (0x800000);
+  E = exp - 127;
+  if(E < 0){
+    return 0;
+  }
+  // inf/nan
+  if(E >= 31){
+    return 0x80000000u;
+  }
+  if(E > 23){
+    val <<= (E - 23);
+  }else{
+    val >>= (23 - E);
+  }
+  val = sign == 1 ? -val : val;
+  return val;
 }
 /* 
  * floatPower2 - Return bit-level equivalent of the expression 2.0^x
@@ -310,5 +358,21 @@ int floatFloat2Int(unsigned uf) {
  *   Rating: 4
  */
 unsigned floatPower2(int x) {
-    return 2;
+    unsigned exp, frac;
+    // 10.0 2^-1
+    // 10.000 => x...10.000
+    if(x > 127){
+      return 0x7F800000;
+    }
+    if(x >= -126){
+      exp = x + 127;
+      frac = 0;
+      return (exp << 23) | frac;
+    }
+    if(x >= -149){
+      exp = 0;
+      frac = 1 << (x + 149);
+      return frac;
+    }
+    return 0;
 }
